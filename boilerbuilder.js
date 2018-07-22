@@ -1,7 +1,14 @@
+/*
+  node boilerbuilder.js add build-name
+  node boilerbuilder.js remove build-name
+*/
 
+var SERVERSRC = "http://mroczna.stronazen.pl/uigen/";
+var buildMode = process.argv[2];
+var buildName = process.argv[3];
 var request = require("request");
 var fs = require('fs');
-function runInjector(url, callback){
+function httpLoader(url, callback){
   request({
       url: url,
       json: true
@@ -9,96 +16,130 @@ function runInjector(url, callback){
       if (!error && response.statusCode === 200) {
           // console.log(body) // Print the json response
           callback(body);
+      }else{
+        console.log("\x1b[33m%s\x1b[0m", "-- ░▒  \x1b[30m\x1b[4m\x1b[31mRequest problem from:" ,url);
       }
   });
 }
-
-var buildName = process.argv[2];
 var parser = {
-  url:  "http://mroczna.stronazen.pl/uigen/"+buildName,
+  url:  SERVERSRC+buildName,
   counter: 0,
   last_load: false,
   files: [],
   init: function(){
-    
     /* create main file information */
     fs.readFile(__dirname+'/boilerplate.build.json',function(err,content){
-      
-      if(err){
-        content = '{}';
-      };
+      if(err){ content = '{}' };
       var parseJson = JSON.parse(content);
-
-      if(parseJson[buildName] == true){
-
-        console.log("\x1b[36m%s\x1b[0m", "-- ░▒ \x1b[0m!! Build "+buildName+" exist\n");
-
-      }else{
-
-        parseJson[buildName] = true;
+        if(buildMode == 'remove'){
+          delete parseJson[buildName];
+          console.log("\x1b[36m%s\x1b[0m", "-- ░▒ \x1b[33m\x1b[0m !! Build "+buildName+" removed");
+        }else{
+          if(parseJson[buildName] == true){
+            console.log("\x1b[36m%s\x1b[0m", "-- ░▒ \x1b[4m\x1b[31m!! Build "+buildName+" exist\n");
+          }else{
+            parseJson[buildName] = true;
+          }
+        }
         fs.writeFile(__dirname+'/boilerplate.build.json',JSON.stringify(parseJson),function(err){
           if(err) throw err;
         });
-
-        runInjector(parser.url+"/build.json", function callback(data){
+        httpLoader(parser.url+"/build.json", function callback(data){
           parser.files = data;
           parser.load();
         });
-
-      }
     });
-
-    /* end */
-
   },
   load: function(){
-
-    var _path = this.url+"/"+parser.files[this.counter].path;
-
-    runInjector(_path, function callback(data){
-
-      var _dir =  __dirname+"/"+parser.files[parser.counter].path;
-
-      if( parser.files[parser.counter].type == 'file' ){
-
-        fs.writeFile(_dir, data, function (err) {
-           if (err) throw err;
-           console.log("\x1b[36m-- ░▒ \x1b[0m Create file: "+_dir);
-           if(this.last_load){
-              console.log("\x1b[36m%s\x1b[0m", "-- ░▒ ------------------------------------------------------------------------------------");
-            }
-        });
-
+    /* init Action */
+    var attrs = parser.files[this.counter];
+    httpLoader(SERVERSRC+buildName+'/'+HELPER.getPath(attrs), function callback(data){
+      if(buildMode == 'add'){
+        ACTION[attrs.type](attrs,data);
       }
-
-      if( parser.files[parser.counter].type == 'code' ){
-
-        var text = fs.readFileSync(_dir,'utf8');
-        var tag = parser.files[parser.counter].before;
-        var res = text.replace(tag, "// ░░ start "+buildName+"\n"+data+"\n// ░░ end "+buildName+"\n\n"+tag);
-
-        fs.writeFile(_dir, res, function (err) {
-           if (err) throw err;
-           console.log("\x1b[36m-- ░▒ \x1b[0m Add code to: "+_dir);
-           if(this.last_load){
-              console.log("\x1b[36m%s\x1b[0m", "-- ░▒ ------------------------------------------------------------------------------------");
-            }
-        });
+      if(buildMode == 'remove'){
+        ACTION[attrs.type+"_remove"](attrs,data);
       }
-        
-      parser.counter++;
-      if(parser.counter < parser.files.length){
-
-          parser.load();
-        
-      }else{
-        this.last_load = true;
-      }
-
+      parser.nextStep();
     });
+  },
+  nextStep: function(){
+    parser.counter++;
+    if(parser.counter < parser.files.length){
+        parser.load();
+    }else{
+      this.last_load = true;
+    }
   }
 }
 console.log("\n\x1b[36m%s\x1b[0m", "-- ░▒ ------------------------------------------------------------------------------------");
-console.log("\x1b[36m-- ░▒ \x1b[0mStart build: \x1b[4m"+buildName+"\x1b[0m");
+if(buildMode == 'add'){
+  console.log("\x1b[36m-- ░▒ \x1b[0mStart build: \x1b[4m"+buildName+"\x1b[0m");
+}
+if(buildMode == 'remove'){
+  console.log("\x1b[36m-- ░▒ \x1b[0mStart remove: \x1b[4m"+buildName+"\x1b[0m");
+}
 console.log("\x1b[36m%s\x1b[0m", "-- ░▒ ------------------------------------------------------------------------------------");
 parser.init();
+
+
+/*
+  actions
+*/
+
+var ACTION = {
+  replaceBefore: function(data,contentToAdd){
+    var content = fs.readFileSync(__dirname+"/"+data.path,'utf8');
+    var tag = data.before;
+    var res = content.replace(tag, contentToAdd+"\n"+tag);
+    HELPER.writeContent(__dirname+"/"+data.path, res);
+  },
+  replaceBefore_remove: function(data,contentToAdd){
+    var content = fs.readFileSync(__dirname+"/"+data.path,'utf8');
+    var res = content.replace(contentToAdd, '');
+    HELPER.writeContent(__dirname+"/"+data.path, res);
+  },
+  addEnd: function(data,contentToAdd){
+    var content = fs.readFileSync(__dirname+"/"+data.path,'utf8');
+    var res = content+contentToAdd;
+    HELPER.writeContent(__dirname+"/"+data.path, res);
+  },
+  addEnd_remove: function(data,contentToAdd){
+    var content = fs.readFileSync(__dirname+"/"+data.path,'utf8');
+    var res = content.replace(contentToAdd, '');
+    HELPER.writeContent(__dirname+"/"+data.path, res);
+  },
+}
+
+/*
+  helpers
+*/
+var HELPER = {
+  getPath: function(data){
+    if(data.path){
+      var path = data.path;
+    }
+    if(data.from){
+      var path = data.from;
+    }
+    if(!data.from && !data.path){
+      console.log('no chuj, nie ma dir to plik');
+    }
+    return path;
+  },
+  writeContent: function(_dir,content){
+    fs.writeFile(_dir, content, function (err) {
+       if (err) throw err;
+        if(buildMode == 'add'){
+         console.log("\x1b[36m-- ░▒ \x1b[0m Add code to: "+_dir);
+        }
+        if(buildMode == 'remove'){
+          console.log("\x1b[36m-- ░▒ \x1b[0m Remove code from: "+_dir);
+        }
+       if(parser.last_load){
+          console.log("\x1b[36m%s\x1b[0m", "-- ░▒ ------------------------------------------------------------------------------------");
+        }
+    });
+  }
+
+}
