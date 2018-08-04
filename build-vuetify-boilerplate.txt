@@ -1,0 +1,15 @@
+# boilerbuilder
+
+1.create standard app on vuecli
+2.copy boilerbuilder.js to your vue.app main folder
+3. install mudules:
+
+npm install request
+
+3.build:
+node boilerbuilder.js add vue-init-boilerbuilder
+
+4. install vuetify
+npm install vuetify --save
+npm install material-design-icons-iconfont
+node boilerbuilder.js add vue-init-vuetify
