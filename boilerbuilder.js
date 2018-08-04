@@ -88,6 +88,11 @@ parser.init();
 */
 
 var ACTION = {
+  file: function(data,contentToAdd){
+    fs.writeFile(__dirname+"/"+data.path, contentToAdd, function(err){
+      if(err) throw err;
+    });
+  },
   replaceBefore: function(data,contentToAdd){
     var content = fs.readFileSync(__dirname+"/"+data.path,'utf8');
     var tag = data.before;
@@ -123,7 +128,7 @@ var HELPER = {
       var path = data.from;
     }
     if(!data.from && !data.path){
-      console.log('no chuj, nie ma dir to plik');
+      console.log('no chuj, nie ma dir to plik - jak zwykle koment wszystko wyjasnia');
     }
     return path;
   },

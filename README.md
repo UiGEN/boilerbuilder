@@ -1,4 +1,7 @@
 # boilerbuilder
 
-to run type:
-node boilerbuilder.js build-name
+to add type:
+node boilerbuilder.js add build-name
+
+to remove type:
+node boilerbuilder.js remove build-name
